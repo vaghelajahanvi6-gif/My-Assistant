@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Assistant</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="My Assistant">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* ── SETUP SCREEN ── */
+        #setup-screen {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100vh; padding: 32px 24px;
+            background: linear-gradient(160deg, #4f46e5 0%, #7c3aed 100%); color: white;
+        }
+        #setup-screen .logo { font-size: 64px; margin-bottom: 16px; }
+        #setup-screen h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+        #setup-screen p { opacity: 0.85; margin-bottom: 36px; text-align: center; font-size: 14px; line-height: 1.6; }
+        #setup-screen input {
+            width: 100%; padding: 14px 16px; border-radius: 12px; border: 2px solid transparent;
+            font-size: 15px; margin-bottom: 12px; outline: none; background: rgba(255,255,255,0.95); color: #1f2937;
+        }
+        #setup-screen input:focus { border-color: #c4b5fd; }
+        #setup-screen button {
+            width: 100%; padding: 15px; border-radius: 12px; border: none;
+            background: white; color: #4f46e5; font-size: 16px; font-weight: 700; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin-top: 4px;
+        }
+        #setup-screen .hint { margin-top: 20px; font-size: 12px; opacity: 0.75; text-align: center; line-height: 1.6; }
+        #setup-screen a { color: #c4b5fd; text-decoration: underline; }
+
+        /* ── MAIN APP ── */
+        #app { display: none; flex-direction: column; height: 100vh; }
+
+        .header {
+            background: #4f46e5; color: white; padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(79,70,229,0.3); flex-shrink: 0;
+        }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .header-avatar { width: 36px; height: 36px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .header-title { font-size: 16px; font-weight: 600; }
+        .header-sub { font-size: 11px; opacity: 0.8; }
+        .header-actions { display: flex; gap: 8px; }
+        .header-btn {
+            background: rgba(255,255,255,0.2); border: none; color: white;
+            padding: 7px 11px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: 500;
+        }
+        .header-btn:active { background: rgba(255,255,255,0.35); }
+
+        /* ── REMINDER ALERT ── */
+        #reminder-alert {
+            display: none; background: #f59e0b; color: white;
+            padding: 12px 16px; font-size: 14px; font-weight: 500;
+            display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+        }
+        #reminder-alert.visible { display: flex; }
+        #reminder-alert button { background: none; border: none; color: white; font-size: 18px; cursor: pointer; }
+
+        /* ── CHAT ── */
+        #chat {
+            flex: 1; overflow-y: auto; padding: 16px 12px;
+            display: flex; flex-direction: column; gap: 10px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .msg { max-width: 82%; display: flex; flex-direction: column; }
+        .msg.user { align-self: flex-end; align-items: flex-end; }
+        .msg.assistant { align-self: flex-start; align-items: flex-start; }
+        .msg.center { align-self: center; align-items: center; }
+
+        .bubble {
+            padding: 11px 15px; border-radius: 18px;
+            font-size: 15px; line-height: 1.55; word-break: break-word;
+        }
+        .msg.user .bubble { background: #4f46e5; color: white; border-bottom-right-radius: 4px; }
+        .msg.assistant .bubble { background: white; color: #1f2937; border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .msg.center .bubble { background: #e9eaf0; color: #6b7280; font-size: 12px; padding: 6px 14px; border-radius: 20px; }
+
+        .typing-bubble { background: white; padding: 14px 18px; border-radius: 18px; border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); align-self: flex-start; }
+        .typing-bubble span { display: inline-block; width: 7px; height: 7px; background: #9ca3af; border-radius: 50%; animation: bounce 1.2s infinite; margin: 0 2px; }
+        .typing-bubble span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-bubble span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+
+        /* ── INPUT ── */
+        .input-bar {
+            padding: 10px 12px; background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0;
+        }
+        #user-input {
+            flex: 1; padding: 10px 14px; border: 1.5px solid #e5e7eb;
+            border-radius: 22px; font-size: 15px; outline: none;
+            resize: none; max-height: 110px; font-family: inherit;
+            line-height: 1.4; background: #f9fafb; color: #1f2937;
+        }
+        #user-input:focus { border-color: #4f46e5; background: white; }
+        #send-btn {
+            background: #4f46e5; color: white; border: none;
+            width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+            font-size: 17px; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: opacity 0.2s;
+        }
+        #send-btn:disabled { opacity: 0.45; }
+        #send-btn:active { opacity: 0.8; }
+
+        /* ── MEMORY PANEL ── */
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 99; }
+        .overlay.open { display: block; }
+        #memory-panel {
+            display: none; position: fixed; top: 0; right: 0;
+            width: 88%; max-width: 360px; height: 100vh;
+            background: white; box-shadow: -4px 0 24px rgba(0,0,0,0.12);
+            z-index: 100; overflow-y: auto; flex-direction: column;
+        }
+        #memory-panel.open { display: flex; }
+        .panel-header {
+            padding: 16px; background: #4f46e5; color: white;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+        }
+        .panel-header span { font-weight: 600; font-size: 16px; }
+        .panel-close { background: none; border: none; color: white; font-size: 22px; cursor: pointer; }
+        .panel-clear { background: rgba(255,255,255,0.2); border: none; color: white; padding: 5px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+        .mem-item { padding: 14px 16px; border-bottom: 1px solid #f3f4f6; }
+        .mem-item:last-child { border-bottom: none; }
+        .mem-tag { font-size: 11px; background: #ede9fe; color: #6d28d9; padding: 2px 9px; border-radius: 10px; display: inline-block; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+        .mem-tag.reminder { background: #fef3c7; color: #92400e; }
+        .mem-content { font-size: 14px; color: #374151; line-height: 1.5; }
+        .mem-time { font-size: 11px; color: #9ca3af; margin-top: 5px; }
+        .mem-status { float: right; font-size: 11px; font-weight: 600; }
+        .done { color: #10b981; }
+        .pending { color: #f59e0b; }
+        .empty-state { padding: 48px 24px; text-align: center; color: #9ca3af; font-size: 14px; line-height: 1.7; }
+        .empty-state div { font-size: 40px; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+
+<!-- ══ SETUP ══ -->
+<div id="setup-screen">
+    <div class="logo">🤖</div>
+    <h1>My Personal Assistant</h1>
+    <p>Your AI that remembers everything,<br>sets reminders, and helps you daily.</p>
+    <input type="text" id="name-input" placeholder="Your name (e.g. Rahul)" autocomplete="off" />
+    <input type="password" id="api-key-input" placeholder="Claude API Key (sk-ant-...)" autocomplete="off" />
+    <button onclick="saveSetup()">Get Started →</button>
+    <div class="hint">
+        Get your free API key at<br>
+        <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a><br><br>
+        Your key is saved only on this device.
+    </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="app">
+    <div class="header">
+        <div class="header-left">
+            <div class="header-avatar">🤖</div>
+            <div>
+                <div class="header-title">My Assistant</div>
+                <div class="header-sub" id="header-sub">Always here for you</div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="header-btn" onclick="openMemory()">📝 Memory</button>
+            <button class="header-btn" onclick="clearChat()">🗑️</button>
+        </div>
+    </div>
+
+    <div id="reminder-alert">
+        <span id="reminder-text"></span>
+        <button onclick="closeReminderAlert()">✕</button>
+    </div>
+
+    <div id="chat"></div>
+
+    <div class="input-bar">
+        <textarea id="user-input" placeholder="Talk to me... set a reminder, save a note..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button id="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+</div>
+
+<!-- ══ MEMORY PANEL ══ -->
+<div class="overlay" id="overlay" onclick="closeMemory()"></div>
+<div id="memory-panel">
+    <div class="panel-header">
+        <span>📝 Memory</span>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button class="panel-clear" onclick="clearMemory()">Clear All</button>
+            <button class="panel-close" onclick="closeMemory()">✕</button>
+        </div>
+    </div>
+    <div id="memory-list" style="flex:1;overflow-y:auto"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let apiKey = '';
+let userName = 'Friend';
+let memory = [];
+let chatHistory = [];
+let isThinking = false;
+
+// ══════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════
+window.addEventListener('load', () => {
+    apiKey  = localStorage.getItem('pa_key')  || '';
+    userName = localStorage.getItem('pa_name') || 'Friend';
+    memory  = JSON.parse(localStorage.getItem('pa_memory') || '[]');
+
+    if (apiKey) bootApp();
+
+    // Check reminders every 60 seconds
+    setInterval(checkReminders, 60000);
+
+    // Ask notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+});
+
+function saveSetup() {
+    const name = document.getElementById('name-input').value.trim();
+    const key  = document.getElementById('api-key-input').value.trim();
+    if (!key) { alert('Please enter your API key'); return; }
+    if (!key.startsWith('sk-ant-')) { alert('API key should start with sk-ant-'); return; }
+    userName = name || 'Friend';
+    apiKey   = key;
+    localStorage.setItem('pa_name', userName);
+    localStorage.setItem('pa_key',  apiKey);
+    bootApp();
+}
+
+function bootApp() {
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    document.getElementById('header-sub').textContent = `Hi ${userName} 👋`;
+
+    addMsg('assistant',
+        `Hey ${userName}! 👋 I'm your personal assistant.\n\n` +
+        `I remember everything you tell me — even after you close the app.\n\n` +
+        `Try saying:\n• *"My wife's name is Priya"*\n• *"Remind me to call Raj in 2 hours"*\n• *"Note: our office WiFi password is xyz123"*\n• *"What's my wife's name?"*`
+    );
+    checkReminders();
+}
+
+// ══════════════════════════════════════
+// CHAT
+// ══════════════════════════════════════
+function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+}
+
+async function sendMessage() {
+    if (isThinking) return;
+    const input = document.getElementById('user-input');
+    const text  = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    isThinking = true;
+    document.getElementById('send-btn').disabled = true;
+
+    addMsg('user', text);
+    chatHistory.push({ role: 'user', content: text });
+
+    const typingEl = showTyping();
+
+    try {
+        const reply = await callClaude();
+        typingEl.remove();
+
+        // Handle SAVE_MEMORY: commands from Claude
+        const cleanReply = processSpecialCommands(reply, text);
+
+        addMsg('assistant', cleanReply);
+        chatHistory.push({ role: 'assistant', content: cleanReply });
+
+    } catch (err) {
+        typingEl.remove();
+        addMsg('assistant', `⚠️ Error: ${err.message}\n\nMake sure your API key is correct. Tap 🗑️ to reset and re-enter it.`);
+    }
+
+    isThinking = false;
+    document.getElementById('send-btn').disabled = false;
+}
+
+async function callClaude() {
+    const memSummary = memory.length
+        ? memory.map(m => {
+            if (m.type === 'reminder') return `[REMINDER|${m.done ? 'DONE' : 'PENDING'}|due:${new Date(m.reminder_time).toLocaleString()}] ${m.content}`;
+            return `[${m.type.toUpperCase()}] ${m.content}`;
+          }).join('\n')
+        : 'No memories saved yet.';
+
+    const system = `You are ${userName}'s personal AI assistant. You are warm, smart, and have a perfect memory.
+
+## STORED MEMORY (everything ${userName} has told you):
+${memSummary}
+
+## YOUR JOB:
+1. Remember personal info: When ${userName} shares personal info (family names, passwords, dates, preferences, tasks, notes), use this tag on a new line so the app saves it:
+   SAVE_MEMORY:[type]|[exact info to save]
+   Types: identity, family, work, password, note, date, preference, contact
+
+2. Set reminders: When asked to remind, extract the task and time, confirm it naturally, then on a new line:
+   REMINDER_SET:[task description]|[time like "in 2 hours" or "tomorrow 9am" or "2025-12-25 10:00"]
+
+3. Answer from memory: Use the STORED MEMORY above to answer questions about things ${userName} told you.
+
+4. Keep replies SHORT and conversational — this is a mobile app.
+
+5. Never show the SAVE_MEMORY or REMINDER_SET tags in your displayed reply — just say it naturally.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1024,
+            system,
+            messages: chatHistory.slice(-18)
+        })
+    });
+
+    if (!resp.ok) {
+        const e = await resp.json().catch(() => ({}));
+        throw new Error(e.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    return data.content.map(b => b.text || '').join('');
+}
+
+function processSpecialCommands(reply, userMsg) {
+    let clean = reply;
+
+    // Extract SAVE_MEMORY
+    const memMatches = [...reply.matchAll(/SAVE_MEMORY:(\w+)\|(.+)/g)];
+    memMatches.forEach(m => {
+        const type    = m[1].toLowerCase();
+        const content = m[2].trim();
+        if (!memory.some(x => x.content === content)) {
+            memory.push({ id: Date.now() + Math.random(), type, content, timestamp: Date.now() });
+            saveMemory();
+        }
+        clean = clean.replace(m[0], '');
+    });
+
+    // Extract REMINDER_SET
+    const remMatch = reply.match(/REMINDER_SET:([^|\n]+)\|([^\n]+)/);
+    if (remMatch) {
+        const task    = remMatch[1].trim();
+        const timeStr = remMatch[2].trim();
+        const rt      = parseReminderTime(timeStr);
+        memory.push({ id: Date.now(), type: 'reminder', content: task, timestamp: Date.now(), reminder_time: rt, done: false });
+        saveMemory();
+        clean = clean.replace(remMatch[0], '');
+    }
+
+    return clean.trim();
+}
+
+function parseReminderTime(str) {
+    // Relative: "in X minutes/hours/days"
+    const rel = str.match(/in\s+(\d+)\s*(minute|min|hour|hr|day|week)s?/i);
+    if (rel) {
+        const n = parseInt(rel[1]);
+        const u = rel[2].toLowerCase();
+        const ms = { minute:60e3, min:60e3, hour:36e5, hr:36e5, day:864e5, week:6048e5 };
+        return Date.now() + n * (ms[u] || 36e5);
+    }
+    // "tomorrow Xam/pm"
+    const tom = str.match(/tomorrow\s+(\d+)(?::(\d+))?\s*(am|pm)?/i);
+    if (tom) {
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        let h = parseInt(tom[1]); const min = parseInt(tom[2] || 0);
+        if (tom[3]?.toLowerCase() === 'pm' && h < 12) h += 12;
+        if (tom[3]?.toLowerCase() === 'am' && h === 12) h = 0;
+        d.setHours(h, min, 0, 0);
+        return d.getTime();
+    }
+    // Try native Date parse
+    const t = Date.parse(str);
+    if (!isNaN(t)) return t;
+    // Default: 1 hour
+    return Date.now() + 36e5;
+}
+
+// ══════════════════════════════════════
+// REMINDERS
+// ══════════════════════════════════════
+function checkReminders() {
+    const now = Date.now();
+    const due = memory.filter(m => m.type === 'reminder' && !m.done && m.reminder_time && m.reminder_time <= now);
+    if (!due.length) return;
+
+    due.forEach(r => {
+        r.done = true;
+
+        // In-app banner
+        const alertEl = document.getElementById('reminder-alert');
+        document.getElementById('reminder-text').textContent = `⏰ Reminder: ${r.content}`;
+        alertEl.classList.add('visible');
+
+        // System chat message
+        addMsg('center', `⏰ Reminder: ${r.content}`);
+
+        // Browser push notification
+        if (Notification.permission === 'granted') {
+            new Notification('⏰ Reminder from My Assistant', { body: r.content, icon: 'icon.png' });
+        }
+    });
+
+    saveMemory();
+}
+
+function closeReminderAlert() {
+    document.getElementById('reminder-alert').classList.remove('visible');
+}
+
+// ══════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════
+function addMsg(role, text) {
+    const chat = document.getElementById('chat');
+    const wrap = document.createElement('div');
+    wrap.className = `msg ${role === 'user' ? 'user' : role === 'center' ? 'center' : 'assistant'}`;
+    const bub = document.createElement('div');
+    bub.className = 'bubble';
+    bub.innerHTML = escapeHtml(text).replace(/\n/g, '<br>').replace(/\*(.*?)\*/g, '<em>$1</em>');
+    wrap.appendChild(bub);
+    chat.appendChild(wrap);
+    chat.scrollTop = chat.scrollHeight;
+}
+
+function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showTyping() {
+    const chat = document.getElementById('chat');
+    const d = document.createElement('div');
+    d.className = 'typing-bubble';
+    d.innerHTML = '<span></span><span></span><span></span>';
+    chat.appendChild(d);
+    chat.scrollTop = chat.scrollHeight;
+    return d;
+}
+
+function clearChat() {
+    if (!confirm('Clear chat history? Your saved memory will stay.')) return;
+    document.getElementById('chat').innerHTML = '';
+    chatHistory = [];
+    addMsg('assistant', `Chat cleared! Don't worry — I still remember everything you told me. 😊`);
+}
+
+// ══════════════════════════════════════
+// MEMORY PANEL
+// ══════════════════════════════════════
+function openMemory() {
+    renderMemoryList();
+    document.getElementById('memory-panel').classList.add('open');
+    document.getElementById('overlay').classList.add('open');
+}
+function closeMemory() {
+    document.getElementById('memory-panel').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
+}
+function clearMemory() {
+    if (!confirm('Delete ALL saved memory? This cannot be undone.')) return;
+    memory = [];
+    saveMemory();
+    renderMemoryList();
+}
+
+function renderMemoryList() {
+    const list = document.getElementById('memory-list');
+    if (!memory.length) {
+        list.innerHTML = '<div class="empty-state"><div>🧠</div>No memories yet.<br>Tell me things and I\'ll remember them!</div>';
+        return;
+    }
+    list.innerHTML = memory.slice().reverse().map(m => {
+        const isReminder = m.type === 'reminder';
+        const statusHtml = isReminder
+            ? `<span class="mem-status ${m.done ? 'done' : 'pending'}">${m.done ? '✓ Done' : '⏰ Pending'}</span>`
+            : '';
+        const dueHtml = m.reminder_time
+            ? `<div class="mem-time">⏰ Due: ${new Date(m.reminder_time).toLocaleString()}</div>`
+            : '';
+        return `
+        <div class="mem-item">
+            <span class="mem-tag ${isReminder ? 'reminder' : ''}">${m.type}</span>
+            ${statusHtml}
+            <div class="mem-content">${escapeHtml(m.content)}</div>
+            ${dueHtml}
+            <div class="mem-time">Saved: ${new Date(m.timestamp).toLocaleString()}</div>
+        </div>`;
+    }).join('');
+}
+
+function saveMemory() {
+    localStorage.setItem('pa_memory', JSON.stringify(memory));
+}
+</script>
+</body>
+</html>
